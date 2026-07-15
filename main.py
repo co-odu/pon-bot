@@ -1,6 +1,7 @@
 import asyncio
 import os
 from datetime import datetime
+from collections import defaultdict
 from aiogram import Bot, Dispatcher, F
 from aiogram.filters import Command
 from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
@@ -8,10 +9,20 @@ from aiogram.enums import ParseMode
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 MANAGER_LINK = "https://t.me/co_odu_w"
-ADMIN_ID = 6235378997  # ← ЗАМЕНИ на свой ID от @userinfobot
+ADMIN_ID = 6235378997
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
+
+# ========== СТАТИСТИКА В ПАМЯТИ ==========
+stats = {
+    "total": 0,
+    "by_category": defaultdict(int),
+    "helped_yes": 0,
+    "helped_no": 0,
+    "today": defaultdict(int),
+    "history": []
+}
 
 # ========== КЛАВИАТУРЫ ==========
 
@@ -47,7 +58,6 @@ helpful_inline = InlineKeyboardMarkup(
 # ========== ЛОГИРОВАНИЕ ==========
 
 async def log_to_admin(text: str):
-    """Отправляет лог админу в личку"""
     try:
         await bot.send_message(ADMIN_ID, text, parse_mode=ParseMode.HTML)
     except Exception as e:
@@ -61,7 +71,6 @@ async def cmd_start(message: Message):
     user = message.from_user
     chat = message.chat
     
-    # Логируем /start
     await log_to_admin(
         f"🚀 <b>Новый запуск бота</b>\n"
         f"👤 Пользователь: {user.full_name} (@{user.username or 'нет'})\n"
@@ -76,6 +85,38 @@ async def cmd_start(message: Message):
         parse_mode=ParseMode.HTML,
         reply_markup=main_menu
     )
+
+
+@dp.message(Command("stats"))
+async def cmd_stats(message: Message):
+    """Команда /stats — только для админа"""
+    if message.from_user.id != ADMIN_ID:
+        await message.answer("⛔ Эта команда только для администратора.")
+        return
+    
+    today = datetime.now().strftime("%d.%m.%Y")
+    today_total = stats["today"].get(today, 0)
+    
+    text = (
+        f"📊 <b>Статистика обращений</b>\n\n"
+        f"📈 <b>Всего обращений:</b> {stats['total']}\n"
+        f"📅 <b>Сегодня ({today}):</b> {today_total}\n\n"
+        f"📂 <b>По категориям:</b>\n"
+    )
+    
+    for cat, count in sorted(stats["by_category"].items(), key=lambda x: -x[1]):
+        text += f"  • {cat}: {count}\n"
+    
+    text += (
+        f"\n✅ <b>Помогло:</b> {stats['helped_yes']}\n"
+        f"❌ <b>Не помогло:</b> {stats['helped_no']}\n"
+    )
+    
+    if stats["helped_yes"] + stats["helped_no"] > 0:
+        success_rate = stats["helped_yes"] / (stats["helped_yes"] + stats["helped_no"]) * 100
+        text += f"\n🎯 <b>Процент решений:</b> {success_rate:.1f}%"
+    
+    await message.answer(text, parse_mode=ParseMode.HTML)
 
 
 @dp.message(lambda msg: msg.text == "🆘 Проблема")
@@ -109,7 +150,8 @@ async def handle_rate(message: Message):
 
 
 @dp.message(lambda msg: msg.text == "📊 Статистика")
-async def handle_stats(message: Message):
+async def handle_stats_button(message: Message):
+    """Кнопка Статистика — показывает заглушку пользователю"""
     await message.answer(
         "📊 <b>Функция в разработке</b>\n\n"
         "Спасибо за терпение и тестирование! 🙏\n"
@@ -134,15 +176,27 @@ async def handle_problem_category(message: Message):
     user = message.from_user
     chat = message.chat
     category = message.text
-    time_now = datetime.now().strftime('%H:%M %d.%m.%Y')
+    time_now = datetime.now()
+    today_str = time_now.strftime("%d.%m.%Y")
     
-    # Логируем обращение
+    # Собираем статистику
+    stats["total"] += 1
+    stats["by_category"][category] += 1
+    stats["today"][today_str] += 1
+    stats["history"].append({
+        "time": time_now,
+        "category": category,
+        "user": user.full_name,
+        "chat": chat.title or "Личка"
+    })
+    
+    # Логируем
     await log_to_admin(
-        f"🆘 <b>Новое обращение</b>\n"
+        f"🆘 <b>Новое обращение #{stats['total']}</b>\n"
         f"📂 Категория: {category}\n"
         f"👤 От: {user.full_name} (@{user.username or 'нет'})\n"
         f"💬 Чат: {chat.title or 'Личка'} (ID: <code>{chat.id}</code>)\n"
-        f"⏰ Время: {time_now}"
+        f"⏰ Время: {time_now.strftime('%H:%M %d.%m.%Y')}"
     )
     
     # Ответ пользователю
@@ -195,9 +249,10 @@ async def callback_helped_yes(callback):
     user = callback.from_user
     chat = callback.message.chat
     
-    # Логируем оценку
+    stats["helped_yes"] += 1
+    
     await log_to_admin(
-        f"✅ <b>Помогло!</b>\n"
+        f"✅ <b>Помогло!</b> (Всего: {stats['helped_yes']})\n"
         f"👤 Пользователь: {user.full_name}\n"
         f"💬 Чат: {chat.title or 'Личка'}\n"
         f"⏰ Время: {datetime.now().strftime('%H:%M %d.%m.%Y')}"
@@ -215,9 +270,10 @@ async def callback_helped_no(callback):
     user = callback.from_user
     chat = callback.message.chat
     
-    # Логируем эскалацию
+    stats["helped_no"] += 1
+    
     await log_to_admin(
-        f"❌ <b>НЕ помогло — нужен менеджер!</b>\n"
+        f"❌ <b>НЕ помогло — нужен менеджер!</b> (Всего: {stats['helped_no']})\n"
         f"👤 Пользователь: {user.full_name}\n"
         f"💬 Чат: {chat.title or 'Личка'}\n"
         f"⏰ Время: {datetime.now().strftime('%H:%M %d.%m.%Y')}\n"

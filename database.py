@@ -5,11 +5,9 @@ from datetime import datetime
 DB_FILE = "bot.db"
 
 def init_db():
-    """Создаёт таблицы, если их нет"""
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     
-    # Пользователи
     c.execute('''
         CREATE TABLE IF NOT EXISTS users (
             user_id INTEGER PRIMARY KEY,
@@ -22,7 +20,6 @@ def init_db():
         )
     ''')
     
-    # Обращения (проблемы)
     c.execute('''
         CREATE TABLE IF NOT EXISTS requests (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -36,7 +33,6 @@ def init_db():
         )
     ''')
     
-    # Обратная связь (идеи/баги)
     c.execute('''
         CREATE TABLE IF NOT EXISTS feedback (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -49,12 +45,20 @@ def init_db():
         )
     ''')
     
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS chats (
+            chat_id INTEGER PRIMARY KEY,
+            title TEXT,
+            chat_type TEXT,
+            added_at TEXT
+        )
+    ''')
+    
     conn.commit()
     conn.close()
 
 
 def save_user(user_id, name, username, display_name, role, addresses):
-    """Сохраняет или обновляет пользователя"""
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     
@@ -73,7 +77,6 @@ def save_user(user_id, name, username, display_name, role, addresses):
 
 
 def get_user(user_id):
-    """Получает пользователя по ID"""
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     
@@ -95,7 +98,6 @@ def get_user(user_id):
 
 
 def get_all_users():
-    """Получает всех пользователей"""
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     
@@ -118,7 +120,6 @@ def get_all_users():
 
 
 def save_request(user_id, display_name, address, role, category, helped=None):
-    """Сохраняет обращение"""
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     
@@ -137,7 +138,6 @@ def save_request(user_id, display_name, address, role, category, helped=None):
 
 
 def save_feedback(user_id, display_name, address, role, text):
-    """Сохраняет обратную связь"""
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     
@@ -155,7 +155,6 @@ def save_feedback(user_id, display_name, address, role, text):
 
 
 def get_all_feedbacks():
-    """Получает все фидбеки (идеи/баги)"""
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     
@@ -180,33 +179,64 @@ def get_all_feedbacks():
     return feedbacks
 
 
-def get_stats():
-    """Получает статистику"""
+def save_chat(chat_id, title, chat_type):
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     
-    # Всего обращений
+    c.execute('''
+        INSERT OR REPLACE INTO chats 
+        (chat_id, title, chat_type, added_at)
+        VALUES (?, ?, ?, ?)
+    ''', (
+        chat_id, title, chat_type,
+        datetime.now().strftime('%H:%M %d.%m.%Y')
+    ))
+    
+    conn.commit()
+    conn.close()
+
+
+def get_all_chat_ids():
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    
+    c.execute('SELECT chat_id FROM chats')
+    ids = [row[0] for row in c.fetchall()]
+    
+    conn.close()
+    return ids
+
+
+def remove_chat(chat_id):
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    
+    c.execute('DELETE FROM chats WHERE chat_id = ?', (chat_id,))
+    
+    conn.commit()
+    conn.close()
+
+
+def get_stats():
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    
     c.execute('SELECT COUNT(*) FROM requests')
     total = c.fetchone()[0]
     
-    # Сегодня
     today = datetime.now().strftime('%d.%m.%Y')
     c.execute("SELECT COUNT(*) FROM requests WHERE created_at LIKE ?", (f'%{today}',))
     today_count = c.fetchone()[0]
     
-    # По категориям
     c.execute('SELECT category, COUNT(*) FROM requests GROUP BY category')
     by_category = {row[0]: row[1] for row in c.fetchall()}
     
-    # По адресам
     c.execute('SELECT address, COUNT(*) FROM requests GROUP BY address')
     by_address = {row[0]: row[1] for row in c.fetchall()}
     
-    # По должностям
     c.execute('SELECT role, COUNT(*) FROM requests GROUP BY role')
     by_role = {row[0]: row[1] for row in c.fetchall()}
     
-    # Помогло/не помогло
     c.execute('SELECT helped, COUNT(*) FROM requests WHERE helped IS NOT NULL GROUP BY helped')
     helped_stats = {row[0]: row[1] for row in c.fetchall()}
     
@@ -224,7 +254,6 @@ def get_stats():
 
 
 def get_all_user_ids():
-    """Получает все ID пользователей для рассылки"""
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     

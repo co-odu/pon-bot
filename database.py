@@ -154,6 +154,32 @@ def save_feedback(user_id, display_name, address, role, text):
     conn.close()
 
 
+def get_all_feedbacks():
+    """Получает все фидбеки (идеи/баги)"""
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    
+    c.execute('''
+        SELECT user_id, display_name, address, role, text, created_at
+        FROM feedback
+        ORDER BY created_at DESC
+    ''')
+    rows = c.fetchall()
+    conn.close()
+    
+    feedbacks = []
+    for row in rows:
+        feedbacks.append({
+            "user_id": row[0],
+            "display_name": row[1],
+            "address": row[2],
+            "role": row[3],
+            "text": row[4],
+            "created_at": row[5]
+        })
+    return feedbacks
+
+
 def get_stats():
     """Получает статистику"""
     conn = sqlite3.connect(DB_FILE)

@@ -635,34 +635,50 @@ async def handle_problem_category(message: Message):
     chat = message.chat
     category = message.text
     
+    # Проверяем, личка это или группа/канал
+    is_private = chat.type == "private"
+    
     db_user = get_user(user_id)
-    if not db_user:
+    
+    # В личке — регистрация обязательна
+    if is_private and not db_user:
         await message.answer("⚠️ Сначала пройди регистрацию — нажми /start")
         return
     
-    if user_id not in current_address:
+    # В личке — нужно выбрать точку
+    if is_private and user_id not in current_address:
         await message.answer(
             "🏪 Сначала выбери точку через меню <b>🆘 Проблема</b>",
             parse_mode=ParseMode.HTML
         )
         return
     
-    selected_address = current_address[user_id]
-    display_name = db_user.get("display_name", user.full_name)
+    # Определяем данные для отображения
+    if is_private and db_user:
+        selected_address = current_address.get(user_id, "Неизвестно")
+        display_name = db_user.get("display_name", user.full_name)
+        role = db_user["role"]
+    else:
+        # В группе/канале — без регистрации
+        selected_address = chat.title or "Группа"
+        display_name = user.full_name
+        role = "Группа"
     
-    save_request(
-        user_id=user_id,
-        display_name=display_name,
-        address=selected_address,
-        role=db_user["role"],
-        category=category
-    )
+    # Сохраняем в БД только если зарегистрирован
+    if db_user:
+        save_request(
+            user_id=user_id,
+            display_name=display_name,
+            address=selected_address,
+            role=role,
+            category=category
+        )
     
     await log_to_admin(
         f"🆘 <b>Новое обращение!</b>\n"
         f"👤 Имя: <b>{display_name}</b>\n"
         f"📍 Адрес: <b>{selected_address}</b>\n"
-        f"👤 Должность: <b>{db_user['role']}</b>\n"
+        f"👤 Должность: <b>{role}</b>\n"
         f"🆔 Telegram: {user.full_name} (@{user.username or 'нет'})\n"
         f"📂 Категория: {category}\n"
         f"💬 Чат: {chat.title or 'Личка'} (ID: <code>{chat.id}</code>)\n"

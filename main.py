@@ -32,11 +32,8 @@ def get_main_menu(user_id):
     if user_id == ADMIN_ID:
         return ReplyKeyboardMarkup(
             keyboard=[
-                [KeyboardButton(text="🆘 Проблема")],
-                [KeyboardButton(text="💡 Идея / Баг"), KeyboardButton(text="🏪 Мои точки")],
-                [KeyboardButton(text="📋 Мои обращения"), KeyboardButton(text="⭐ Оценить")],
-                [KeyboardButton(text="📊 Статистика"), KeyboardButton(text="💡 Фидбеки")],
-                [KeyboardButton(text="📢 Рассылка")]
+                [KeyboardButton(text="📊 Статистика")],
+                [KeyboardButton(text="💡 Фидбеки"), KeyboardButton(text="📢 Рассылка")]
             ],
             resize_keyboard=True
         )
@@ -316,6 +313,7 @@ async def handle_problem(message: Message):
         await message.answer(
             f"📍 Точка: <b>{addresses[0]}</b>\n\n"
             f"Выбери категорию проблемы 👇",
+            parse_mode=ParseMode.HTML,
             reply_markup=problem_menu
         )
     else:
@@ -417,7 +415,6 @@ async def process_feedback(message: Message):
         text=f"[{feedback_type}] {text}"
     )
     
-    # ВИЗУАЛЬНОЕ ВЫДЕЛЕНИЕ ФИДБЕКА
     await log_to_admin(
         f"🚨🚨🚨 <b>НОВЫЙ ФИДБЕК ОТ ПОЛЬЗОВАТЕЛЯ!</b> 🚨🚨🚨\n\n"
         f"{'━'*25}\n"
@@ -506,6 +503,7 @@ async def process_broadcast(message: Message):
         f"📬 Отправлено: {sent}\n"
         f"❌ Ошибок: {failed}\n"
         f"👥 Всего: {len(all_users)}",
+        parse_mode=ParseMode.HTML,
         reply_markup=get_main_menu(user_id)
     )
 

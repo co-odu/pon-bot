@@ -6,7 +6,7 @@ from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton, InlineKe
 from aiogram.enums import ParseMode
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-MANAGER_LINK = "https://t.me/ваш_менеджер"
+MANAGER_LINK = "https://t.me/co_odu_w"
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
